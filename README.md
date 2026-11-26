@@ -25,9 +25,10 @@ Requires Node 22 or newer.
 
 ```bash
 npm test
+npm run test:browser
 ```
 
-The suite has 10 deterministic `node:test` cases with 73 assertion statements. The checks cover strong-acid/strong-base hand-computed excess-acid and excess-base points, the weak-acid initial quadratic, the Henderson-Hasselbalch buffer region, conjugate-base hydrolysis at equivalence, exact charge-balance residuals, indicator transition windows, input validation, meter rounding, and monotonic chart data.
+The unit suite has 50 deterministic `node:test` cases with 101 assertion statements. The browser harness adds 20 browser-level checks, comprising 19 in-page assertions driven over CDP plus one console-and-exception hygiene check. The checks cover strong-acid/strong-base hand-computed excess-acid and excess-base points, the weak-acid initial quadratic, half-equivalence pH against pKa, Henderson-Hasselbalch buffer values and slope, conjugate-base hydrolysis at equivalence, exact charge-balance residuals, indicator transition-window edges and outside-window rejection, input validation, meter rounding, chart-data shape, monotonic chart data, rendered browser readouts, validation recovery, and browser console hygiene.
 
 ## Chemistry model
 
@@ -102,6 +103,7 @@ app.js                  browser state, canvas chart, readouts, CSV export
 solver.js               dependency-free chemistry and numerical solver
 tests/titration.test.js deterministic node:test suite
 scripts/serve.mjs       tiny local static server
+scripts/checks.mjs      browser-level CDP assertion pass
 scripts/screenshots.mjs three-image 1440x900 headless-Chrome capture
 scripts/synth_narration.py local OmniVoice sentence synthesis
 scripts/process_narration.py narration tempo scaling and manifest retiming

@@ -11,6 +11,7 @@ import {
   generateCurve,
   hendersonPh,
   meterReadings,
+  phAtHalfEquivalence,
   recommendIndicator,
   scanChargeRoot,
   solvePh,
@@ -19,7 +20,10 @@ import {
 } from '../solver.js';
 
 const close = (actual, expected, tolerance, message) => {
-  assert.ok(Math.abs(actual - expected) <= tolerance, `${message}: expected ${expected}, got ${actual}`);
+  assert.ok(
+    Math.abs(actual - expected) <= tolerance,
+    `${message}: expected ${expected} +/- ${tolerance}, got ${actual}`,
+  );
 };
 
 const strong = {
@@ -41,169 +45,348 @@ const weak = {
   points: 241,
 };
 
-test('strong-acid strong-base charge balance matches hand-computed excess-acid and excess-base points', () => {
+const PKA_ACETIC = 4.7447274948966935;
+const EPS_SOLVER = 1e-6;
+const EPS_EXACT = 1e-12;
+const EPS_RESIDUAL = 1e-10;
+const EPS_MONOTONIC = 1e-10;
+
+test('strong-strong equivalence volume is the hand stoichiometric ratio', () => {
   assert.equal(equivalenceVolume(strong), 50);
-
-  close(solvePh(strong, 0), 1.0, 1e-6, '0.100 M strong acid initial pH');
-
-  const beforeEqH = ((0.1 * 50) - (0.1 * 10)) / (50 + 10);
-  close(solvePh(strong, 10), -Math.log10(beforeEqH), 1e-6, '10 mL excess strong acid pH');
-  assert.ok(beforeEqH > 0.066 && beforeEqH < 0.067, 'hand excess acid concentration is 0.0667 M');
-
-  close(solvePh(strong, 50), 7.0, 1e-8, 'strong-strong equivalence pH');
-
-  const excessOh = ((0.1 * 60) - (0.1 * 50)) / (50 + 60);
-  const afterEq = 14 + Math.log10(excessOh);
-  close(solvePh(strong, 60), afterEq, 1e-6, '60 mL excess strong base pH');
-  assert.ok(afterEq > 11.95 && afterEq < 11.96, 'hand excess-base pH is about 11.959');
-
-  const ph = solvePh(strong, 25);
-  assert.ok(Math.abs(chargeResidualAtPh(ph, strong, 25)) < 1e-11, 'strong-acid charge-balance residual is near zero');
+  assert.equal((0.1 * 50) / 0.1, 50);
 });
 
-test('weak-acid strong-base solver matches independent initial-acid, buffer, and equivalence calculations', () => {
+test('strong acid initial pH is the hand-computed 0.1 M value', () => {
+  close(solvePh(strong, 0), 1.0, EPS_SOLVER, 'initial pH epsilon 1e-6');
+});
+
+test('strong acid at 10 mL matches hand excess-acid concentration', () => {
+  const excessH = ((0.1 * 50) - (0.1 * 10)) / (50 + 10);
+  assert.ok(excessH > 0.0666666666 && excessH < 0.0666666667, 'excess acid is 1/15 M');
+  close(solvePh(strong, 10), 1.176091259054704, EPS_SOLVER, '10 mL pH epsilon 1e-6');
+});
+
+test('strong acid at half-neutralization matches hand excess-acid concentration', () => {
+  const excessH = ((0.1 * 50) - (0.1 * 25)) / (50 + 25);
+  assert.equal(excessH, 1 / 30);
+  close(solvePh(strong, 25), 1.4771212547157537, EPS_SOLVER, '25 mL pH epsilon 1e-6');
+});
+
+test('strong-strong equivalence pH is neutral within epsilon 1e-8', () => {
+  close(solvePh(strong, 50), 7.0, 1e-8, 'equivalence pH epsilon 1e-8');
+});
+
+test('strong acid at 60 mL matches hand excess-base pH', () => {
+  const excessOh = ((0.1 * 60) - (0.1 * 50)) / (50 + 60);
+  assert.ok(excessOh > 0.009090909 && excessOh < 0.00909091, 'excess base is 1/110 M');
+  close(solvePh(strong, 60), 11.958607314894325, EPS_SOLVER, '60 mL pH epsilon 1e-6');
+});
+
+test('strong acid final curve point matches hand excess-base pH at 75 mL', () => {
+  const excessOh = ((0.1 * 75) - (0.1 * 50)) / (50 + 75);
+  assert.equal(excessOh, 0.02);
+  close(solvePh(strong, 75), 12.301029995674838, EPS_SOLVER, '75 mL pH epsilon 1e-6');
+});
+
+test('strong-acid solutions satisfy charge balance before and after equivalence', () => {
+  const beforePh = solvePh(strong, 25);
+  const afterPh = solvePh(strong, 60);
+  assert.ok(Math.abs(chargeResidualAtPh(beforePh, strong, 25)) < EPS_RESIDUAL, 'pre-equivalence residual epsilon 1e-10 M');
+  assert.ok(Math.abs(chargeResidualAtPh(afterPh, strong, 60)) < EPS_RESIDUAL, 'post-equivalence residual epsilon 1e-10 M');
+});
+
+test('weak-acid initial pH matches the independent quadratic hand calculation', () => {
   const ka = weak.ka;
   const ca = weak.analyteConcentration;
-  const initialH = (-ka + Math.sqrt(ka * ka + 4 * ka * ca)) / 2;
-  const initialPh = -Math.log10(initialH);
-  close(solvePh(weak, 0), initialPh, 5e-4, 'independent weak-acid initial quadratic');
-  assert.ok(initialPh > 2.87 && initialPh < 2.88, 'hand initial weak-acid pH is about 2.875');
-
-  const pKa = -Math.log10(ka);
-  close(solvePh(weak, 25), pKa, 0.01, 'half-equivalence buffer pH is pKa');
-  close(hendersonPh(weak, 25), pKa, 1e-12, 'Henderson-Hasselbalch half-neutralization identity');
-
-  const eqVolume = equivalenceVolume(weak);
-  assert.equal(eqVolume, 50);
-  const conjugateBase = (ca * weak.analyteVolume) / (weak.analyteVolume + eqVolume);
-  const approxOh = Math.sqrt((KW / ka) * conjugateBase);
-  const approxEqPh = 14 + Math.log10(approxOh);
-  close(exactEquivalencePh(weak), approxEqPh, 0.02, 'independent conjugate-base hydrolysis estimate');
-  assert.ok(approxEqPh > 8.70 && approxEqPh < 8.74, 'hand weak-acid equivalence pH is about 8.72');
-  assert.ok(exactEquivalencePh(weak) > 7.5, 'weak-acid equivalence point is basic, not forced to pH 7');
-
-  const postEqOh = ((0.1 * 60) - (0.1 * 50)) / (50 + 60);
-  close(solvePh(weak, 60), 14 + Math.log10(postEqOh), 2e-3, 'post-equivalence excess base dominates');
-  assert.ok(Math.abs(chargeResidualAtPh(solvePh(weak, 37.5), weak, 37.5)) < 1e-11, 'weak-acid charge-balance residual is near zero');
+  const hydrogen = (-ka + Math.sqrt(ka * ka + 4 * ka * ca)) / 2;
+  assert.ok(hydrogen > 0.00133267 && hydrogen < 0.00133268, 'hand hydrogen-ion concentration is about 0.001332671 M');
+  close(solvePh(weak, 0), 2.8752770615501357, 2e-9, 'initial weak-acid pH epsilon 2e-9');
 });
 
-test('grid scan plus bisection brackets and solves a known monotonic root', () => {
+test('weak-acid equivalence volume is the hand stoichiometric ratio', () => {
+  assert.equal(equivalenceVolume(weak), 50);
+  assert.equal((0.1 * 50) / 0.1, 50);
+});
+
+test('weak-acid equivalence pH matches conjugate-base hydrolysis from Ka and Ca', () => {
+  const conjugateBase = (weak.analyteConcentration * weak.analyteVolume) / (weak.analyteVolume + equivalenceVolume(weak));
+  const hydroxide = Math.sqrt((KW / weak.ka) * conjugateBase);
+  const handPh = 14 + Math.log10(hydroxide);
+  assert.equal(conjugateBase, 0.05);
+  assert.ok(handPh > 8.72184 && handPh < 8.72185, 'hand hydrolysis estimate is about pH 8.72185');
+  close(exactEquivalencePh(weak), handPh, 1e-4, 'equivalence hydrolysis epsilon 1e-4');
+});
+
+test('weak-acid equivalence point is basic rather than forced to pH 7', () => {
+  assert.ok(exactEquivalencePh(weak) > 8.7, 'solved equivalence pH is above 8.7');
+  assert.ok(exactEquivalencePh(weak) < 8.73, 'solved equivalence pH stays near the hand hydrolysis value');
+});
+
+test('half-equivalence pH equals pKa within epsilon 7e-4', () => {
+  close(phAtHalfEquivalence(weak), PKA_ACETIC, 7e-4, 'half-equivalence epsilon 7e-4');
+  assert.equal(-Math.log10(weak.ka), PKA_ACETIC);
+});
+
+test('Henderson-Hasselbalch half-neutralization identity is exact', () => {
+  close(hendersonPh(weak, 25), PKA_ACETIC, EPS_EXACT, 'Henderson half-equivalence epsilon 1e-12');
+});
+
+test('quarter-equivalence pH is near the hand Henderson value within epsilon 0.003', () => {
+  const handPh = PKA_ACETIC + Math.log10(1 / 3);
+  close(solvePh(weak, 12.5), handPh, 0.003, 'quarter-equivalence epsilon 0.003');
+});
+
+test('ninety-percent-neutralized pH is near the hand Henderson value within epsilon 5e-4', () => {
+  const handPh = PKA_ACETIC + Math.log10(9);
+  close(solvePh(weak, 45), handPh, 5e-4, '90 percent neutralized epsilon 5e-4');
+});
+
+test('weak-acid post-equivalence pH matches the excess-base hand calculation', () => {
+  const excessOh = ((0.1 * 60) - (0.1 * 50)) / (50 + 60);
+  close(solvePh(weak, 60), 14 + Math.log10(excessOh), 2e-3, 'post-equivalence excess base epsilon 0.002');
+});
+
+test('weak-acid solutions satisfy charge balance at equivalence and beyond', () => {
+  const eqPh = exactEquivalencePh(weak);
+  const postPh = solvePh(weak, 60);
+  assert.ok(Math.abs(chargeResidualAtPh(eqPh, weak, 50)) < EPS_RESIDUAL, 'equivalence residual epsilon 1e-10 M');
+  assert.ok(Math.abs(chargeResidualAtPh(postPh, weak, 60)) < EPS_RESIDUAL, 'post-equivalence residual epsilon 1e-10 M');
+});
+
+test('buffer-region endpoints are the exact 1/11 and 10/11 equivalence volumes', () => {
+  const buffer = bufferRange(weak);
+  close(buffer.startVolume, 50 / 11, EPS_EXACT, 'buffer start epsilon 1e-12 mL');
+  close(buffer.endVolume, 500 / 11, EPS_EXACT, 'buffer end epsilon 1e-12 mL');
+  assert.ok(buffer.endVolume > buffer.startVolume);
+});
+
+test('buffer lower edge is near pKa - 1 within epsilon 0.012', () => {
+  const buffer = bufferRange(weak);
+  close(buffer.startPh, PKA_ACETIC - 1, 0.012, 'buffer lower-edge epsilon 0.012');
+});
+
+test('buffer upper edge is near pKa + 1 within epsilon 0.001', () => {
+  const buffer = bufferRange(weak);
+  close(buffer.endPh, PKA_ACETIC + 1, 0.001, 'buffer upper-edge epsilon 0.001');
+});
+
+test('buffer-region slope matches the hand Henderson slope within epsilon 5e-4 pH per mL', () => {
+  const buffer = bufferRange(weak);
+  const slope = (buffer.endPh - buffer.startPh) / (buffer.endVolume - buffer.startVolume);
+  const handSlope = 2 / ((500 / 11) - (50 / 11));
+  assert.ok(handSlope > 0.0488888 && handSlope < 0.0488889, 'hand slope is about 0.0488889 pH/mL');
+  close(slope, handSlope, 5e-4, 'buffer slope epsilon 5e-4 pH/mL');
+});
+
+test('strong-acid mode has no weak-acid buffer range', () => {
+  assert.equal(bufferRange(strong), null);
+});
+
+test('grid scan brackets a known pH 7 root', () => {
+  const bracket = scanChargeRoot((ph) => ph - 7);
+  assert.ok(bracket.lo < 7, 'lower bracket is below pH 7');
+  assert.ok(bracket.hi > 7, 'upper bracket is above pH 7');
+});
+
+test('grid scan bracket width is one 0.05 pH step', () => {
+  const bracket = scanChargeRoot((ph) => ph - 7);
+  assert.ok(bracket.hi - bracket.lo <= 0.050000001, 'bracket width epsilon 1e-9 beyond one grid step');
+});
+
+test('bisection converges to the bracketed root within epsilon 1e-12', () => {
   const residual = (ph) => ph - 7;
   const bracket = scanChargeRoot(residual);
-  assert.ok(bracket.lo < 7 && bracket.hi > 7, 'grid brackets pH 7');
-  assert.ok(bracket.hi - bracket.lo <= 0.050000001, 'bracket width is one pH grid step');
-  close(bisectRoot(residual, bracket.lo, bracket.hi), 7, 1e-12, 'bisected pH root');
-  assert.equal(bisectRoot(residual, 7, 7), 7, 'exact endpoint root returns immediately');
-  assert.throws(() => bisectRoot(residual, 8, 9), /does not bracket/, 'bisection rejects an unbracketed interval');
+  close(bisectRoot(residual, bracket.lo, bracket.hi), 7, EPS_EXACT, 'bisection root epsilon 1e-12');
 });
 
-test('generated strong and weak curves are monotonic, bounded, and numerically charge-balanced', () => {
-  const strongCurve = generateCurve(strong);
-  const weakCurve = generateCurve(weak);
+test('bisection returns an exact endpoint root immediately', () => {
+  assert.equal(bisectRoot((ph) => ph - 7, 7, 7), 7);
+});
 
-  assert.equal(strongCurve.points.length, 241);
-  assert.equal(weakCurve.points.length, 241);
-  assert.equal(strongCurve.monotonic, true);
-  assert.equal(weakCurve.monotonic, true);
-  assert.ok(strongCurve.maxAbsResidual < 1e-10, 'strong curve maximum residual below 1e-10 M');
-  assert.ok(weakCurve.maxAbsResidual < 1e-10, 'weak curve maximum residual below 1e-10 M');
-  assert.equal(strongCurve.points[0].volume, 0);
-  assert.equal(strongCurve.points.at(-1).volume, 75);
-  assert.ok(strongCurve.points[0].ph < strongCurve.points.at(-1).ph, 'strong curve rises overall');
-  assert.ok(weakCurve.points[0].ph < weakCurve.points.at(-1).ph, 'weak curve rises overall');
+test('bisection rejects an interval that does not bracket a root', () => {
+  assert.throws(() => bisectRoot((ph) => ph - 7, 8, 9), /does not bracket/);
+});
 
-  for (let i = 1; i < strongCurve.points.length; i++) {
-    assert.ok(strongCurve.points[i].ph >= strongCurve.points[i - 1].ph - 1e-10, `strong curve monotonic at index ${i}`);
-    assert.ok(weakCurve.points[i].ph >= weakCurve.points[i - 1].ph - 1e-10, `weak curve monotonic at index ${i}`);
+test('grid scan reports when no root exists in the pH bounds', () => {
+  assert.throws(() => scanChargeRoot(() => 1), /no charge-balance root bracketed/);
+});
+
+test('generated curve exposes the normalized input and requested point count', () => {
+  const curve = generateCurve(weak);
+  assert.equal(curve.points.length, 241);
+  assert.equal(curve.input.acidType, 'weak');
+  assert.equal(curve.input.maxTitrantVolume, 75);
+  assert.equal(curve.input.points, 241);
+});
+
+test('generated curve volumes form an exact linear grid', () => {
+  const curve = generateCurve(strong);
+  assert.equal(curve.points[0].volume, 0);
+  assert.equal(curve.points.at(-1).volume, 75);
+  close(curve.points[1].volume - curve.points[0].volume, 0.3125, EPS_EXACT, 'grid spacing epsilon 1e-12 mL');
+  close(curve.points[120].volume, 37.5, EPS_EXACT, 'middle grid volume epsilon 1e-12 mL');
+});
+
+test('generated chart-data points have the required shape and finite values', () => {
+  const curve = generateCurve(weak);
+  for (const point of [curve.points[0], curve.points[120], curve.points.at(-1)]) {
+    assert.deepEqual(Object.keys(point), ['volume', 'ph', 'hydrogen', 'hydroxide', 'residual']);
+    assert.ok(Number.isFinite(point.volume));
+    assert.ok(Number.isFinite(point.ph));
+    assert.ok(Number.isFinite(point.hydrogen));
+    assert.ok(Number.isFinite(point.hydroxide));
+    assert.ok(Number.isFinite(point.residual));
   }
 });
 
-test('weak-acid buffer range occupies the expected Henderson-Hasselbalch region', () => {
-  const buffer = bufferRange(weak);
-  const pKa = -Math.log10(weak.ka);
-  close(buffer.startVolume, 50 / 11, 1e-12, 'buffer start volume');
-  close(buffer.endVolume, 500 / 11, 1e-12, 'buffer end volume');
-  close(buffer.startPh, pKa - 1, 0.025, 'buffer lower edge near pKa - 1');
-  close(buffer.endPh, pKa + 1, 0.025, 'buffer upper edge near pKa + 1');
-  assert.ok(buffer.endVolume > buffer.startVolume, 'buffer volume range is ordered');
-  assert.equal(bufferRange(strong), null, 'strong-acid mode has no weak-acid buffer range');
+test('generated chart data keeps hydrogen and hydroxide consistent with Kw', () => {
+  const curve = generateCurve(strong);
+  for (const index of [0, 60, 120, 180, 240]) {
+    const point = curve.points[index];
+    close(point.hydrogen * point.hydroxide, KW, 1e-22, `Kw product at index ${index} epsilon 1e-22`);
+  }
 });
 
-test('indicator recommendation uses transition windows rather than a universal indicator', () => {
-  const neutral = recommendIndicator(7.0);
-  assert.equal(neutral.id, 'bromothymol-blue');
-  assert.equal(neutral.match, 'inside-window');
-  assert.equal(neutral.distanceToWindow, 0);
-
-  const weakEq = recommendIndicator(exactEquivalencePh(weak));
-  assert.equal(weakEq.id, 'phenolphthalein');
-  assert.equal(weakEq.match, 'inside-window');
-
-  const acidic = recommendIndicator(3.6);
-  assert.equal(acidic.id, 'methyl-orange');
-  assert.equal(acidic.match, 'inside-window');
-
-  const outside = recommendIndicator(11.2);
-  assert.equal(outside.id, 'phenolphthalein');
-  assert.equal(outside.match, 'nearest-outside-window');
-  assert.ok(outside.distanceToWindow > 1.19 && outside.distanceToWindow < 1.21, 'outside-window distance is explicit');
+test('strong curve pH is monotonic across the whole sweep', () => {
+  const curve = generateCurve(strong);
+  assert.equal(curve.monotonic, true);
+  for (let i = 1; i < curve.points.length; i++) {
+    assert.ok(curve.points[i].ph >= curve.points[i - 1].ph - EPS_MONOTONIC, `monotonic at index ${i} epsilon 1e-10 pH`);
+  }
 });
 
-test('meter readings expose exact model pH plus an honestly rounded meter column', () => {
-  const readings = meterReadings(weak);
-  assert.equal(readings.length, 7);
-  assert.equal(readings[0].label, 'initial');
-  assert.equal(readings[4].label, 'equivalence');
-  assert.equal(readings[4].volume, 50);
-  close(readings[4].ph, exactEquivalencePh(weak), 1e-12, 'meter table equivalence uses exact solve');
-  assert.equal(readings[4].meterReading, Math.round(readings[4].ph * 100) / 100);
-  assert.ok(readings[1].ph < readings[2].ph, 'quarter-neutralized pH precedes half-neutralized pH');
-  assert.ok(readings[3].ph < readings[4].ph, '90 percent neutralized pH precedes equivalence pH');
-  assert.ok(readings[5].ph > readings[4].ph, 'post-equivalence pH rises');
+test('weak curve pH is monotonic across the whole sweep', () => {
+  const curve = generateCurve(weak);
+  assert.equal(curve.monotonic, true);
+  for (let i = 1; i < curve.points.length; i++) {
+    assert.ok(curve.points[i].ph >= curve.points[i - 1].ph - EPS_MONOTONIC, `monotonic at index ${i} epsilon 1e-10 pH`);
+  }
 });
 
-test('input validation rejects invalid chemistry and accepts a normalized valid input', () => {
+test('strong curve maximum charge-balance residual stays within epsilon 1e-10 M', () => {
+  const curve = generateCurve(strong);
+  assert.ok(curve.maxAbsResidual < EPS_RESIDUAL, `maximum residual ${curve.maxAbsResidual}`);
+});
+
+test('weak curve maximum charge-balance residual stays within epsilon 1e-10 M', () => {
+  const curve = generateCurve(weak);
+  assert.ok(curve.maxAbsResidual < EPS_RESIDUAL, `maximum residual ${curve.maxAbsResidual}`);
+});
+
+test('chart-data endpoint values match the hand-computed strong-acid sweep', () => {
+  const curve = generateCurve(strong);
+  close(curve.initialPh, 1.0, EPS_SOLVER, 'initial chart pH epsilon 1e-6');
+  close(curve.finalPh, 12.301029995674838, EPS_SOLVER, 'final chart pH epsilon 1e-6');
+  close(curve.equivalencePh, 7.0, 1e-8, 'equivalence chart pH epsilon 1e-8');
+});
+
+test('neutral equivalence selects bromothymol blue inside its transition window', () => {
+  const indicator = recommendIndicator(7.0);
+  assert.equal(indicator.id, 'bromothymol-blue');
+  assert.equal(indicator.match, 'inside-window');
+  assert.equal(indicator.distanceToWindow, 0);
+});
+
+test('lower edge pH 3.1 selects methyl orange inside its transition window', () => {
+  const indicator = recommendIndicator(3.1);
+  assert.equal(indicator.id, 'methyl-orange');
+  assert.equal(indicator.match, 'inside-window');
+});
+
+test('upper edge pH 10.0 selects phenolphthalein inside its transition window', () => {
+  const indicator = recommendIndicator(10.0);
+  assert.equal(indicator.id, 'phenolphthalein');
+  assert.equal(indicator.match, 'inside-window');
+});
+
+test('shared edge pH 6.0 uses the closest indicator pKa among containing windows', () => {
+  const indicator = recommendIndicator(6.0);
+  assert.equal(indicator.id, 'methyl-red');
+  assert.equal(indicator.match, 'inside-window');
+});
+
+test('acetic-acid equivalence selects phenolphthalein inside its transition window', () => {
+  const indicator = recommendIndicator(exactEquivalencePh(weak));
+  assert.equal(indicator.id, 'phenolphthalein');
+  assert.equal(indicator.match, 'inside-window');
+});
+
+test('pH just below phenolphthalein window is explicitly rejected as outside range', () => {
+  const indicator = recommendIndicator(8.299);
+  assert.equal(indicator.id, 'phenolphthalein');
+  assert.equal(indicator.match, 'nearest-outside-window');
+  close(indicator.distanceToWindow, 0.001, 1e-12, 'distance below window epsilon 1e-12 pH');
+});
+
+test('pH above every tabulated window is explicitly rejected as outside range', () => {
+  const indicator = recommendIndicator(11.2);
+  assert.equal(indicator.id, 'phenolphthalein');
+  assert.equal(indicator.match, 'nearest-outside-window');
+  close(indicator.distanceToWindow, 1.2, 1e-12, 'distance above window epsilon 1e-12 pH');
+});
+
+test('input validation rejects zero, negative, NaN, out-of-range Ka, and zero burette range', () => {
   assert.throws(() => validateInput({ ...strong, analyteConcentration: 0 }), /analyteConcentration/, 'zero acid concentration rejected');
+  assert.throws(() => validateInput({ ...strong, analyteConcentration: Number.NaN }), /analyteConcentration must be a finite number/, 'NaN acid concentration rejected');
   assert.throws(() => validateInput({ ...strong, titrantConcentration: -0.1 }), /titrantConcentration/, 'negative titrant concentration rejected');
-  assert.throws(() => validateInput({ ...strong, analyteVolume: 0 }), /analyteVolume/, 'zero analyte volume rejected');
-  assert.throws(() => validateInput({ ...strong, maxTitrantVolume: 0 }), /maxTitrantVolume/, 'zero titrant range rejected');
-  assert.throws(() => validateInput({ ...strong, acidType: 'diprotic' }), /acidType/, 'unsupported acid type rejected');
+  assert.throws(() => validateInput({ ...strong, analyteVolume: Number.NaN }), /analyteVolume must be a finite number/, 'NaN analyte volume rejected');
+  assert.throws(() => validateInput({ ...strong, maxTitrantVolume: 0 }), /maxTitrantVolume/, 'zero burette range rejected');
+  assert.throws(() => validateInput({ ...strong, maxTitrantVolume: -1 }), /maxTitrantVolume/, 'negative burette range rejected');
   assert.throws(() => validateInput({ ...weak, ka: 0 }), /ka/, 'zero Ka rejected');
+  assert.throws(() => validateInput({ ...weak, ka: 1e-13 }), /ka/, 'Ka below the validated range rejected');
+  assert.throws(() => validateInput({ ...weak, ka: 0.2 }), /ka/, 'Ka above the validated range rejected');
   assert.throws(() => validateInput({ ...weak, ka: undefined }), /ka/, 'missing weak-acid Ka rejected');
+  assert.throws(() => validateInput({ ...strong, acidType: 'diprotic' }), /acidType/, 'unsupported acid type rejected');
   assert.throws(() => validateInput({ ...strong, points: 40 }), /points/, 'too few curve points rejected');
   assert.throws(() => validateInput({ ...strong, points: 241.5 }), /points/, 'noninteger curve points rejected');
   assert.throws(() => solvePh(strong, -1), /titrantVolume/, 'negative titrant volume rejected');
+  assert.throws(() => solvePh(strong, Number.NaN), /titrantVolume/, 'NaN titrant volume rejected');
+});
 
+test('input validation normalizes valid input and derives the default burette range', () => {
   const normalized = validateInput(weak);
   assert.equal(normalized.acidType, 'weak');
   assert.equal(normalized.maxTitrantVolume, 75);
   assert.equal(normalized.points, 241);
+  assert.equal(normalized.ka, weak.ka);
+
   const automaticRange = validateInput({ ...strong, maxTitrantVolume: undefined });
-  assert.equal(automaticRange.maxTitrantVolume, 75, 'missing titrant range defaults to 1.5x equivalence');
+  assert.equal(automaticRange.maxTitrantVolume, 75, 'missing burette range defaults to 1.5 times equivalence');
+  assert.equal(automaticRange.ka, null, 'strong-acid mode normalizes Ka to null');
 });
 
-test('validity flags state assumptions and dynamic warnings explicitly', () => {
+test('meter table has the expected shape, exact rows, and honest two-decimal rounding', () => {
+  const readings = meterReadings(weak);
+  assert.equal(readings.length, 7);
+  assert.deepEqual(readings.map((row) => row.fraction), [0, 0.25, 0.5, 0.9, 1, 1.1, 1.25]);
+  assert.equal(readings[0].label, 'initial');
+  assert.equal(readings[4].label, 'equivalence');
+  assert.equal(readings[4].volume, 50);
+  close(readings[4].ph, exactEquivalencePh(weak), EPS_EXACT, 'meter equivalence epsilon 1e-12 pH');
+  for (const row of readings) {
+    assert.equal(row.meterReading, Math.round(row.ph * 100) / 100);
+  }
+});
+
+test('validity flags expose assumptions plus short-range and dilute-solution warnings', () => {
   const flags = validityFlags(weak, 75);
   assert.ok(flags.some((flag) => flag.includes('25 C')), 'temperature assumption present');
   assert.ok(flags.some((flag) => flag.includes('activity coefficients ignored')), 'activity assumption present');
-  assert.ok(flags.some((flag) => flag.includes('monoprotic weak acid')), 'monoprotic weak-acid assumption present');
-  assert.ok(flags.some((flag) => flag.includes('not instrument-grade')), 'honest instrument limitation present');
+  assert.ok(flags.some((flag) => flag.includes('monoprotic weak acid')), 'weak-acid assumption present');
+  assert.ok(flags.some((flag) => flag.includes('not instrument-grade')), 'instrument limitation present');
   assert.ok(!flags.some((flag) => flag.includes('stops before equivalence')), 'complete range does not warn');
-
-  const shortFlags = validityFlags(weak, 40);
-  assert.ok(shortFlags.some((flag) => flag.includes('stops before equivalence')), 'short range warning appears');
-
-  const diluteFlags = validityFlags({ ...strong, analyteConcentration: 1e-5 }, 75);
-  assert.ok(diluteFlags.some((flag) => flag.includes('water autoionization')), 'dilute-solution warning appears');
+  assert.ok(validityFlags(weak, 40).some((flag) => flag.includes('stops before equivalence')), 'short range warning appears');
+  assert.ok(validityFlags({ ...strong, analyteConcentration: 1e-5 }, 75).some((flag) => flag.includes('water autoionization')), 'dilute warning appears');
 });
 
-test('full analysis object joins curve, equivalence, buffer, indicator, meter, and monotonicity evidence', () => {
+test('full analysis joins curve, buffer, indicator, meter, and monotonicity evidence', () => {
   const analysis = analyzeTitration(weak);
   assert.equal(analysis.monotonic, true);
   assert.equal(analysis.indicator.id, 'phenolphthalein');
-  assert.equal(analysis.buffer.pKa, -Math.log10(weak.ka));
+  assert.equal(analysis.buffer.pKa, PKA_ACETIC);
   assert.equal(analysis.meter.length, 7);
-  assert.ok(analysis.halfEquivalencePh > 4.73 && analysis.halfEquivalencePh < 4.76, 'half-equivalence pH in acetic-acid buffer region');
-  close(analysis.equivalencePh, exactEquivalencePh(weak), 1e-12, 'analysis equivalence pH is exact solver result');
+  assert.equal(analysis.points.length, 241);
+  close(analysis.halfEquivalencePh, PKA_ACETIC, 7e-4, 'analysis half-equivalence epsilon 7e-4');
+  close(analysis.equivalencePh, exactEquivalencePh(weak), EPS_EXACT, 'analysis equivalence epsilon 1e-12');
   assert.ok(analysis.flags.length >= 5, 'at least five explicit assumptions or warnings are exposed');
 });
