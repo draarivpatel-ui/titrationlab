@@ -1,0 +1,182 @@
+{
+ "sr": 24000,
+ "total": 74.835,
+ "lead": 0.6,
+ "gap_sent": 0.3,
+ "gap_para": 0.75,
+ "tail": 1.0,
+ "seed": 1,
+ "overall_rms": 0.10904780775308609,
+ "overall_peak": 1.0,
+ "words": 167,
+ "sentences": [
+  {
+   "para": 0,
+   "sent": 0,
+   "text": "TitrationLab is an offline acid base titration workbench.",
+   "dur": 3.583,
+   "words": 8,
+   "rms": 0.10863342136144638,
+   "start": 0.522,
+   "natural_start": 0.6,
+   "natural_dur": 4.12
+  },
+  {
+   "para": 0,
+   "sent": 1,
+   "text": "It runs as one static page with no accounts, no network calls, and no hidden services.",
+   "dur": 5.113,
+   "words": 16,
+   "rms": 0.1259240359067917,
+   "start": 4.365,
+   "natural_start": 5.02,
+   "natural_dur": 5.88
+  },
+  {
+   "para": 1,
+   "sent": 0,
+   "text": "It does not draw a canned curve.",
+   "dur": 1.948,
+   "words": 7,
+   "rms": 0.10944617539644241,
+   "start": 10.13,
+   "natural_start": 11.65,
+   "natural_dur": 2.24
+  },
+  {
+   "para": 1,
+   "sent": 1,
+   "text": "It solves charge balance at every volume, brackets the root on a pH grid, refines it by bisection, and keeps water autoionization in the model.",
+   "dur": 8.626,
+   "words": 25,
+   "rms": 0.13220183551311493,
+   "start": 12.339,
+   "natural_start": 14.19,
+   "natural_dur": 9.92
+  },
+  {
+   "para": 2,
+   "sent": 0,
+   "text": "The strong acid preset shows the sharp rise through equivalence.",
+   "dur": 3.965,
+   "words": 10,
+   "rms": 0.10806548595428467,
+   "start": 21.617,
+   "natural_start": 24.86,
+   "natural_dur": 4.56
+  },
+  {
+   "para": 2,
+   "sent": 1,
+   "text": "The readout gives the equivalence volume, solved equivalence pH, and charge residual.",
+   "dur": 5.287,
+   "words": 12,
+   "rms": 0.11218257993459702,
+   "start": 25.843,
+   "natural_start": 29.72,
+   "natural_dur": 6.08
+  },
+  {
+   "para": 3,
+   "sent": 0,
+   "text": "The acetic acid preset reveals the buffer region.",
+   "dur": 3.026,
+   "words": 8,
+   "rms": 0.11225990206003189,
+   "start": 31.783,
+   "natural_start": 36.55,
+   "natural_dur": 3.48
+  },
+  {
+   "para": 3,
+   "sent": 1,
+   "text": "The curve, half equivalence point, and pKa line up, while phenolphthalein matches the basic equivalence point.",
+   "dur": 6.783,
+   "words": 16,
+   "rms": 0.10798901319503784,
+   "start": 35.07,
+   "natural_start": 40.33,
+   "natural_dur": 7.8
+  },
+  {
+   "para": 4,
+   "sent": 0,
+   "text": "Manual inputs change concentration, volume, Ka, resolution, and indicator.",
+   "dur": 4.591,
+   "words": 9,
+   "rms": 0.11590855568647385,
+   "start": 42.504,
+   "natural_start": 48.88,
+   "natural_dur": 5.28
+  },
+  {
+   "para": 4,
+   "sent": 1,
+   "text": "Validation rejects impossible chemistry before recalculation.",
+   "dur": 4.0,
+   "words": 6,
+   "rms": 0.10715412348508835,
+   "start": 47.357,
+   "natural_start": 54.46,
+   "natural_dur": 4.6
+  },
+  {
+   "para": 5,
+   "sent": 0,
+   "text": "The meter table separates exact model pH from a two decimal classroom reading.",
+   "dur": 4.8,
+   "words": 13,
+   "rms": 0.11365159600973129,
+   "start": 52.009,
+   "natural_start": 59.81,
+   "natural_dur": 5.52
+  },
+  {
+   "para": 5,
+   "sent": 1,
+   "text": "The curve can also download as CSV data.",
+   "dur": 2.4,
+   "words": 8,
+   "rms": 0.12247925251722336,
+   "start": 57.07,
+   "natural_start": 65.63,
+   "natural_dur": 2.76
+  },
+  {
+   "para": 6,
+   "sent": 0,
+   "text": "TitrationLab is honest about its limits.",
+   "dur": 2.504,
+   "words": 6,
+   "rms": 0.10608132183551788,
+   "start": 60.122,
+   "natural_start": 69.14,
+   "natural_dur": 2.88
+  },
+  {
+   "para": 6,
+   "sent": 1,
+   "text": "It assumes 25 degrees Celsius, ignores activity coefficients, and models one monoprotic acid.",
+   "dur": 6.157,
+   "words": 13,
+   "rms": 0.11455971002578735,
+   "start": 62.887,
+   "natural_start": 72.32,
+   "natural_dur": 7.08
+  },
+  {
+   "para": 6,
+   "sent": 2,
+   "text": "It is a transparent teaching simulation, not instrument grade measurement.",
+   "dur": 4.661,
+   "words": 10,
+   "rms": 0.10127683728933334,
+   "start": 69.304,
+   "natural_start": 79.7,
+   "natural_dur": 5.36
+  }
+ ],
+ "tempo_scale": 1.15,
+ "volume_scale": 0.88,
+ "natural_total": 86.06
+}

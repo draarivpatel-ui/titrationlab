@@ -1,0 +1,13 @@
+TitrationLab is an offline acid base titration workbench. It runs as one static page with no accounts, no network calls, and no hidden services.
+
+It does not draw a canned curve. It solves charge balance at every volume, brackets the root on a pH grid, refines it by bisection, and keeps water autoionization in the model.
+
+The strong acid preset shows the sharp rise through equivalence. The readout gives the equivalence volume, solved equivalence pH, and charge residual.
+
+The acetic acid preset reveals the buffer region. The curve, half equivalence point, and pKa line up, while phenolphthalein matches the basic equivalence point.
+
+Manual inputs change concentration, volume, Ka, resolution, and indicator. Validation rejects impossible chemistry before recalculation.
+
+The meter table separates exact model pH from a two decimal classroom reading. The curve can also download as CSV data.
+
+TitrationLab is honest about its limits. It assumes 25 degrees Celsius, ignores activity coefficients, and models one monoprotic acid. It is a transparent teaching simulation, not instrument grade measurement.

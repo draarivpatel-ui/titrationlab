@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="TitrationLab is an offline acid-base titration workbench using exact charge-balance chemistry.">
+  <meta name="color-scheme" content="dark">
+  <title>TitrationLab</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="TitrationLab home">TitrationLab</a>
+    <div class="session-badges" aria-label="model context">
+      <span>Offline model</span>
+      <span>25 °C</span>
+      <span>Zero dependencies</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="intro" aria-labelledby="page-title">
+      <div>
+        <h1 id="page-title">TitrationLab</h1>
+      </div>
+    </section>
+
+    <section class="workbench" aria-label="Interactive titration workbench">
+      <aside class="controls surface" aria-labelledby="setup-title">
+        <div class="section-heading">
+          <h2 id="setup-title">Experiment setup</h2>
+          <button id="reset-button" class="ghost-button" type="button">Reset</button>
+        </div>
+
+        <label class="field">
+          <span>Preset scenario</span>
+          <select id="preset-select"></select>
+        </label>
+
+        <fieldset class="acid-toggle">
+          <legend>Acid model</legend>
+          <label><input type="radio" name="acid-type" value="strong" checked> Strong acid</label>
+          <label><input type="radio" name="acid-type" value="weak"> Weak acid</label>
+        </fieldset>
+
+        <div class="input-grid">
+          <label class="field">
+            <span>Acid concentration <em>mol/L</em></span>
+            <input id="acid-concentration" type="number" min="0.000001" max="2" step="any" value="0.1" required>
+          </label>
+          <label class="field">
+            <span>Acid volume <em>mL</em></span>
+            <input id="acid-volume" type="number" min="1" max="500" step="any" value="50" required>
+          </label>
+          <label class="field">
+            <span>Base concentration <em>mol/L</em></span>
+            <input id="base-concentration" type="number" min="0.000001" max="2" step="any" value="0.1" required>
+          </label>
+          <label class="field">
+            <span>Maximum base added <em>mL</em></span>
+            <input id="max-volume" type="number" min="1" max="1000" step="any" value="75" required>
+          </label>
+          <label class="field" id="ka-field" hidden>
+            <span>Weak acid Ka <em>mol/L</em></span>
+            <input id="ka-input" type="number" min="1e-12" max="0.1" step="any" value="1.8e-5">
+          </label>
+          <label class="field">
+            <span>Compare indicator</span>
+            <select id="indicator-select"></select>
+          </label>
+        </div>
+
+        <label class="field range-field">
+          <span>Curve resolution <output id="points-output">241 points</output></span>
+          <input id="points-input" type="range" min="121" max="501" step="20" value="241">
+        </label>
+
+        <div id="input-error" class="input-error" role="alert" hidden></div>
+
+        <div class="control-actions">
+          <button id="csv-button" class="primary-button" type="button">Download CSV</button>
+        </div>
+      </aside>
+
+      <section class="chart-surface surface" aria-labelledby="chart-title">
+        <div class="chart-header">
+          <div>
+            <h2 id="chart-title">Live titration curve</h2>
+            <p id="curve-caption" class="section-note">Strong acid titrated with strong base.</p>
+          </div>
+          <div class="chart-key" aria-label="chart legend">
+            <span><i class="key-line curve-key"></i>pH</span>
+            <span><i class="key-line equivalence-key"></i>equivalence</span>
+            <span><i class="key-swatch indicator-key"></i>indicator window</span>
+          </div>
+        </div>
+
+        <div class="chart-wrap">
+          <canvas id="titration-chart" role="img" aria-label="Titration curve chart"></canvas>
+        </div>
+
+        <label class="scrubber field">
+          <span>Inspect added base <output id="scrub-output">0.00 mL</output></span>
+          <input id="scrub-input" type="range" min="0" max="1000" value="0">
+        </label>
+
+        <div class="point-strip" aria-live="polite">
+          <div><span>pH</span><strong id="point-ph">1.0000</strong></div>
+          <div><span>[H+]</span><strong id="point-h">1.00e-1 M</strong></div>
+          <div><span>[OH-]</span><strong id="point-oh">1.00e-13 M</strong></div>
+          <div><span>charge residual</span><strong id="point-residual">0</strong></div>
+        </div>
+      </section>
+
+      <aside class="readout surface" aria-labelledby="readout-title">
+        <h2 id="readout-title">Data readout</h2>
+        <dl class="readout-list">
+          <div><dt>Equivalence volume</dt><dd id="eq-volume">50.000 mL</dd></div>
+          <div><dt>Equivalence pH</dt><dd id="eq-ph">7.0000</dd></div>
+          <div><dt>Initial pH</dt><dd id="initial-ph">1.0000</dd></div>
+          <div><dt>Final pH</dt><dd id="final-ph">12.5229</dd></div>
+          <div id="pka-row"><dt>pKa</dt><dd id="pka-value">not used</dd></div>
+          <div id="buffer-row"><dt>Buffer region</dt><dd id="buffer-value">not present</dd></div>
+        </dl>
+
+        <div class="indicator-verdict" id="indicator-verdict">
+          <h3>Recommended indicator</h3>
+          <p id="indicator-recommendation"></p>
+          <p id="indicator-comparison" class="section-note"></p>
+        </div>
+
+        <div class="assumption-box">
+          <h3>Validity and assumptions</h3>
+          <ul id="flags-list"></ul>
+        </div>
+      </aside>
+    </section>
+
+    <section class="meter surface" aria-labelledby="meter-title">
+      <div class="section-heading wide-heading">
+        <div>
+          <h2 id="meter-title">What the pH meter would read</h2>
+          <p class="section-note">Exact model values are shown with a separate two-decimal meter-style column.</p>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Point</th>
+              <th scope="col">Base added</th>
+              <th scope="col">Exact model pH</th>
+              <th scope="col">Meter-style reading</th>
+            </tr>
+          </thead>
+          <tbody id="meter-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="chemistry surface" aria-labelledby="chemistry-title">
+      <div>
+        <h2 id="chemistry-title">The chemistry inside</h2>
+        <p class="section-note">Every plotted point solves charge balance by bracketing the root on a pH grid and refining it by bisection.</p>
+      </div>
+      <div class="equation-grid">
+        <article>
+          <h3>Charge balance</h3>
+          <p class="equation">[H<sup>+</sup>] + [B<sup>+</sup>] = [OH<sup>-</sup>] + [A<sup>-</sup>]</p>
+          <p>Positive ions balance negative ions after mixing. The bisection solve finds the one [H<sup>+</sup>] that satisfies this equation.</p>
+        </article>
+        <article>
+          <h3>Weak-acid equilibrium</h3>
+          <p class="equation">K<sub>a</sub> = [H<sup>+</sup>][A<sup>-</sup>] / [HA]</p>
+          <p>Mass balance and Ka partition the weak acid between HA and A<sup>-</sup> at every titrant volume.</p>
+        </article>
+        <article>
+          <h3>Equivalence point</h3>
+          <p class="equation">V<sub>eq</sub> = C<sub>a</sub>V<sub>a</sub> / C<sub>b</sub></p>
+          <p>The equivalence pH is solved from the resulting solution composition. It is never forced to pH 7.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>Built as an offline educational simulation.</span>
+    <span>Activity coefficients ignored. Monoprotic acid model. 25 °C.</span>
+  </footer>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

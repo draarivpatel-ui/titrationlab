@@ -1,0 +1,199 @@
+[
+ {
+  "do": "wait",
+  "ms": 1200
+ },
+ {
+  "do": "move",
+  "selector": ".session-badges",
+  "ms": 700
+ },
+ {
+  "do": "move",
+  "selector": "#titration-chart",
+  "ms": 900
+ },
+ {
+  "do": "at",
+  "s": 10.4
+ },
+ {
+  "do": "move",
+  "selector": "#point-residual",
+  "ms": 800
+ },
+ {
+  "do": "at",
+  "s": 21.8
+ },
+ {
+  "do": "slide",
+  "selector": "#scrub-input",
+  "to": 667,
+  "ms": 2200
+ },
+ {
+  "do": "move",
+  "selector": "#eq-volume",
+  "ms": 650
+ },
+ {
+  "do": "at",
+  "s": 25.95
+ },
+ {
+  "do": "move",
+  "selector": "#eq-ph",
+  "ms": 700
+ },
+ {
+  "do": "at",
+  "s": 31.85
+ },
+ {
+  "do": "select",
+  "selector": "#preset-select",
+  "value": "acetic"
+ },
+ {
+  "do": "slide",
+  "selector": "#scrub-input",
+  "to": 333,
+  "ms": 1600
+ },
+ {
+  "do": "move",
+  "selector": "#buffer-value",
+  "ms": 650
+ },
+ {
+  "do": "at",
+  "s": 35.25
+ },
+ {
+  "do": "move",
+  "selector": "#pka-value",
+  "ms": 700
+ },
+ {
+  "do": "at",
+  "s": 42.55
+ },
+ {
+  "do": "select",
+  "selector": "#indicator-select",
+  "value": "methyl-red"
+ },
+ {
+  "do": "click",
+  "selector": "#acid-concentration"
+ },
+ {
+  "do": "eval",
+  "js": "document.querySelector('#acid-concentration').value=''"
+ },
+ {
+  "do": "type",
+  "selector": "#acid-concentration",
+  "text": "0.08",
+  "cps": 14
+ },
+ {
+  "do": "move",
+  "selector": "#ka-input",
+  "ms": 600
+ },
+ {
+  "do": "eval",
+  "js": "document.querySelector('#ka-input').value=''"
+ },
+ {
+  "do": "type",
+  "selector": "#ka-input",
+  "text": "0.00003",
+  "cps": 14
+ },
+ {
+  "do": "slide",
+  "selector": "#points-input",
+  "to": 321,
+  "ms": 700
+ },
+ {
+  "do": "at",
+  "s": 47.45
+ },
+ {
+  "do": "eval",
+  "js": "(()=>{const e=document.querySelector('#acid-concentration'); e.value='0'; e.dispatchEvent(new Event('input',{bubbles:true}));})()"
+ },
+ {
+  "do": "at",
+  "s": 49.35
+ },
+ {
+  "do": "eval",
+  "js": "(()=>{const e=document.querySelector('#acid-concentration'); e.value='0.08'; e.dispatchEvent(new Event('input',{bubbles:true}));})()"
+ },
+ {
+  "do": "at",
+  "s": 52.05
+ },
+ {
+  "do": "scrollTo",
+  "selector": ".meter",
+  "ms": 1200,
+  "offset": 80
+ },
+ {
+  "do": "move",
+  "selector": "#meter-body",
+  "ms": 750
+ },
+ {
+  "do": "at",
+  "s": 56.85
+ },
+ {
+  "do": "scrollTo",
+  "selector": ".controls",
+  "ms": 800,
+  "offset": 70
+ },
+ {
+  "do": "at",
+  "s": 57.65
+ },
+ {
+  "do": "click",
+  "selector": "#csv-button"
+ },
+ {
+  "do": "at",
+  "s": 60.15
+ },
+ {
+  "do": "scrollTo",
+  "selector": ".readout",
+  "ms": 900,
+  "offset": 80
+ },
+ {
+  "do": "move",
+  "selector": "#flags-list",
+  "ms": 800
+ },
+ {
+  "do": "at",
+  "s": 69.35
+ },
+ {
+  "do": "move",
+  "selector": "#titration-chart",
+  "ms": 800
+ },
+ {
+  "do": "at",
+  "s": 74.7
+ }
+]
