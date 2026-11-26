@@ -182,7 +182,7 @@ await sleep(6000);
 await js(deepFind, false);
 // Studio is a Polymer app: the channel id lands in the URL (/channel/UC.../...)
 // and the DOM only after XHR. Poll up to 45 s.
-const chanOk = await js(`(async () => {
+let chanOk = await js(`(async () => {
   const want = '${EXPECTED_CHANNEL}';
   for (let i = 0; i < 90; i++) {
     const ids = [...new Set([...(location.href.match(/UC[A-Za-z0-9_-]{22}/g) || []),
@@ -193,6 +193,55 @@ const chanOk = await js(`(async () => {
   return { ok: false, ids: [], url: location.href, title: document.title,
     body: document.body ? document.body.innerText.slice(0, 400) : null };
 })()`);
+if (!chanOk.ok) {
+  console.log('initial Studio channel not expected; trying channel switcher');
+  await page('Page.navigate', { url: 'https://www.youtube.com/channel_switcher' });
+  await sleep(8000);
+  const switchResult = await js(`(async () => {
+    const expected = '${EXPECTED_CHANNEL}';
+    const needle = 'Aariv Patel';
+    const redact = (x) => String(x || '').replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '<email>');
+    const elements = [];
+    const visit = (root) => {
+      for (const el of root.querySelectorAll('*')) {
+        elements.push(el);
+        if (el.shadowRoot) visit(el.shadowRoot);
+      }
+    };
+    visit(document);
+    const candidates = [];
+    for (const el of elements) {
+      const text = String(el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (text.includes(needle) && text.length < 220) candidates.push({ el, text });
+    }
+    candidates.sort((a, b) => a.text.length - b.text.length);
+    const sample = candidates.slice(0, 6).map((c) => redact(c.text).slice(0, 100));
+    if (!candidates.length) {
+      return { clicked: false, hasExpectedHtml: document.documentElement.innerHTML.includes(expected), sample, body: redact(document.body ? document.body.innerText.slice(0, 260) : '') };
+    }
+    const c = candidates[0];
+    const target = c.el.closest('a,button,[role="button"],tp-yt-paper-item') || c.el;
+    target.scrollIntoView({ block: 'center' });
+    target.click();
+    return { clicked: true, text: redact(c.text).slice(0, 100), tag: target.tagName.toLowerCase(), sample };
+  })()`);
+  console.log('channel switch attempt:', JSON.stringify(switchResult).slice(0, 700));
+  await sleep(9000);
+  await page('Page.navigate', { url: 'https://studio.youtube.com/' });
+  await sleep(7000);
+  chanOk = await js(`(async () => {
+    const want = '${EXPECTED_CHANNEL}';
+    for (let i = 0; i < 90; i++) {
+      const ids = [...new Set([...(location.href.match(/UC[A-Za-z0-9_-]{22}/g) || []),
+        ...(document.documentElement.innerHTML.match(/UC[A-Za-z0-9_-]{22}/g) || [])])];
+      if (ids.includes(want)) return { ok: true, ids: ids.slice(0, 6), url: location.href };
+      if (ids.length && i >= 20) return { ok: false, ids: ids.slice(0, 6), url: location.href, early: true };
+      await new Promise(r => setTimeout(r, 500));
+    }
+    return { ok: false, ids: [], url: location.href, title: document.title,
+      body: document.body ? document.body.innerText.slice(0, 400) : null };
+  })()`);
+}
 console.log('studio channel check:', JSON.stringify(chanOk).slice(0, 600));
 if (!chanOk.ok) { console.error(`ABORT: expected channel ${EXPECTED_CHANNEL} not confirmed in Studio`); await shutdown(3); }
 
