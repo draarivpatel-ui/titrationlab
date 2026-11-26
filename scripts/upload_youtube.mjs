@@ -37,8 +37,25 @@ const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 // Default: the main Chrome profile's Default dir (holds the Google auth cookies).
 // Never launch against the live profile itself, never port 9333.
 const SRC = process.env.YT_SESSION_SRC || join(process.env.HOME, 'Library/Application Support/Google/Chrome');
-const SRC_DEFAULT = join(SRC, 'Default');
+const SRC_DEFAULT = process.env.YT_SESSION_PROFILE_DIR || join(SRC, 'Default');
 const PORT = 9336, FILE_PORT = 8123;
+
+// Port 9336 is shared with other automation lanes. Wait one minute and retry
+// while it is occupied, up to five rounds, before launching the throwaway Chrome.
+for (let round = 0; round < 5; round++) {
+  try {
+    execFileSync('lsof', ['-nP', `-iTCP:${PORT}`, '-sTCP:LISTEN'], { stdio: 'pipe' });
+    console.log(`port ${PORT} busy, waiting 60 s (round ${round + 1}/5)`);
+    await new Promise((r) => setTimeout(r, 60000));
+  } catch {
+    break;
+  }
+}
+try {
+  execFileSync('lsof', ['-nP', `-iTCP:${PORT}`, '-sTCP:LISTEN'], { stdio: 'pipe' });
+  console.error(`port ${PORT} still busy after retries`);
+  process.exit(5);
+} catch {}
 
 // ---- CORS file server on 8123 -------------------------------------------
 const srv = http.createServer((req, res) => {
@@ -54,14 +71,27 @@ await new Promise((r) => srv.listen(FILE_PORT, '127.0.0.1', r));
 const profile = mkdtempSync(join(tmpdir(), 'titrationlab-yt-profile-'));
 mkdirSync(join(profile, 'Default'), { recursive: true });
 try { copyFileSync(join(SRC, 'Local State'), join(profile, 'Local State')); } catch { console.error('warn: no Local State copied'); }
-for (const f of ['Cookies', 'Preferences', 'Secure Preferences', 'Login Data', 'Web Data']) {
-  try { copyFileSync(join(SRC_DEFAULT, f), join(profile, 'Default', f)); }
-  catch (e) { console.error(`warn: could not copy ${f}: ${e.message}`); }
+const SQLITE_FILES = new Set(['Cookies', 'Login Data', 'Web Data', 'Account Web Data', 'Login Data For Account']);
+for (const f of ['Cookies', 'Cookies-journal', 'Preferences', 'Secure Preferences', 'Login Data', 'Login Data-journal', 'Web Data', 'Web Data-journal', 'Account Web Data', 'Account Web Data-journal', 'Login Data For Account', 'Login Data For Account-journal', 'Network Persistent State']) {
+  const from = join(SRC_DEFAULT, f), to = join(profile, 'Default', f);
+  try {
+    if (SQLITE_FILES.has(f)) execFileSync('sqlite3', [from, '.timeout 5000', `.backup '${to}'`], { stdio: 'pipe' });
+    else copyFileSync(from, to);
+  } catch (e) {
+    try { copyFileSync(from, to); }
+    catch { console.error(`warn: could not copy ${f}: ${e.message}`); }
+  }
 }
 
+const chromeArgs = process.env.YT_HEADFUL === '1'
+  ? ['--window-position=10000,10000']
+  : ['--headless=new'];
 const chrome = spawn(CHROME, [
-  '--headless=new', `--user-data-dir=${profile}`, `--remote-debugging-port=${PORT}`,
+  ...chromeArgs, `--user-data-dir=${profile}`, `--remote-debugging-port=${PORT}`,
   '--no-first-run', '--no-default-browser-check', '--mute-audio', '--hide-scrollbars',
+  '--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+  '--disable-blink-features=AutomationControlled', '--disable-gpu',
+  '--disable-features=KeychainKeyProviderUserDataDirProtection',
   '--window-size=1440,900', 'about:blank',
 ], { stdio: 'ignore' });
 
@@ -79,6 +109,7 @@ async function shutdown(code) {
 process.on('unhandledRejection', (e) => { console.error(e); shutdown(1); });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 let wsUrl = null;
 for (let i = 0; i < 100 && !wsUrl; i++) {
   await sleep(200);
@@ -109,6 +140,16 @@ const { sessionId: sid } = await send('Target.attachToTarget', { targetId, flatt
 const page = (method, params) => send(method, params, sid);
 await page('Page.enable');
 await page('Runtime.enable');
+try {
+  const cookieResult = await page('Network.getAllCookies');
+  const cookies = cookieResult.cookies || [];
+  const authNames = new Set(['SID','HSID','SSID','SAPISID','APISID','__Secure-1PSID','__Secure-3PSID','LSID','__Host-GAPS','__Host-1PLSID','__Host-3PLSID']);
+  const googleCookies = cookies.filter((c) => String(c.domain || '').includes('google') || String(c.domain || '').includes('youtube'));
+  const present = [...new Set(googleCookies.filter((c) => authNames.has(c.name)).map((c) => c.name))].sort();
+  console.log(`session cookie stats: total=${cookies.length} google/youtube=${googleCookies.length} authNames=${present.join(',') || 'none'}`);
+} catch (e) {
+  console.log('session cookie stats unavailable:', e.message);
+}
 
 const js = async (expression, awaitPromise = true) => {
   const r = await page('Runtime.evaluate', { expression, awaitPromise, returnByValue: true });
